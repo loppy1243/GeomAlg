@@ -1,0 +1,12 @@
+name = "GeomAlg"
+uuid = "04236a31-6b04-4216-a914-d829dbaefcb5"
+authors = ["Nicholas Todoroff <loppy1243@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Cassette = "7057c7e9-c182-5462-911a-8362d720325c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+TupleTools = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
