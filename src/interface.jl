@@ -1,6 +1,6 @@
 function quadraticform end
 
-macro with_quadraticform
+macro with_quadratic_form end
 function scalarfieldtype end
 function vectorspacedim end
 function grade end
@@ -23,10 +23,10 @@ function hasgrade end
 function outerprod end
 function leftcontract end
 function rightcontract end
-#function + end
-#function - end
-#function * end
-#function / end
+function add end
+function sub end
+function mul end
+function div end
 #function zero end
 #function one end
 #function oneunit end

@@ -17,19 +17,20 @@ export
     similarmv, similarmvtype
 
 abstract type AbstractMultivector{K, N} end
-abstract type AbstractBlade{K, N} <: AbstractMultivector{K, N} end
+const AM = AbstractMultivector
+abstract type AbstractBlade{K, N} <: AM{K, N} end
 
-struct MultivectorBasis{MV<:AbstractMultivector} end
-MultivectorBasis(MV::Type{<:AbstractMultivector}) = MultivectorBasis{MV}()
-MultivectorBasis(x::AbstractMultivector) = MultivectorBasis(typeof(x))
-multivectortype(::Type{MultivectorBasis{MV}}) where MV<:AbstractMultivector = MV
+struct MultivectorBasis{MV<:AM} end
+MultivectorBasis(MV::Type{<:AM}) = MultivectorBasis{MV}()
+MultivectorBasis(x::AM) = MultivectorBasis(typeof(x))
+multivectortype(::Type{MultivectorBasis{MV}}) where MV<:AM = MV
 multivectortype(x::MultivectorBasis) = multivectortype(typeof(x))
 scalarfieldtype(MB::Type{<:MultivectorBasis}) =
     scalarfieldtype(multivectortype(MV))
 vectorspacedim(MB::Type{<:MultivectorBasis}) =
     vectorspacedim(multivectortype(MV))
 
-let CACHE=Dict{Tuple{DataType, Vector{Int}}, AbstractMultivector}()
+let CACHE=Dict{Tuple{DataType, Vector{Int}}, AM}()
 function Base.getindex(x::MultivectorBasis, idxs::NTuple{<:Any, Int})
     MV = multivectortype(x)
     key = (MV, collect(idxs))
@@ -50,9 +51,24 @@ function Base.show(io::IO, mime::MIME"text/plain", x::MultivectorBasis)
     nothing
 end
 
+quadraticform(a::AM, b::AM) =
+    quadraticform(promote_type(typeof(a), typeof(b)))
+
 Cassette.@context QFormCtx
 function Cassette.overdub(
-    ctx::QFormCtx{QF}, ::typeof(quadraticform), x::AbstractMultivector{K,N}
+    ctx::QFormCTX{QF}, ::typeof(quadraticform),
+    x::AM{K,N}, y::AM{K,N}
+) where {K, N, QF<:AM{K,N}}
+    if hasmethod(quadraticform, typeof(x))
+        quadraticform(xs...)
+    elseif hasmethod(quadraticform, Tuple{Type{K}, typeof(N)})
+        quadraticform(K, N)
+    else
+        ctx.metadata
+    end
+end
+function Cassette.overdub(
+    ctx::QFormCtx{QF}, ::typeof(quadraticform), x::AM{K,N}
 ) where {K, N, QF<:AbstractQuadraticForm{K,N}}
     if hasmethod(quadraticform, Tuple{typeof(x)})
         quadraticform(x)
@@ -63,12 +79,12 @@ function Cassette.overdub(
     end
 end
 function Cassette.overdub(
-    ctx::QFormCtx, ::typeof(quadraticform), x
+    ctx::QFormCtx, ::typeof(quadraticform), xs...
 )
-    if hasmethod(quadraticform, Tuple{typeof(x)})
-        quadraticform(x)
+    if hasmethod(quadraticform, typeof(x))
+        quadraticform(xs...)
     else
-        error("No quadraticform associated with $(typeof(x))")
+        error("No quadraticform associated with $(typeof.(xs))")
     end
 end
 
@@ -79,33 +95,54 @@ end
 include("interface.jl")
 
 ∧(args...) = outerprod(args...)
+a::AM  +  b::AM = add(a, b)
+a::AM  +  b     = add(a, b)
+a      +  b::AM = add(a, b)
+a::AM  -  b::AM = add(a, b)
+a::AM  -  b     = sub(a, b)
+a      -  b::AM = sub(a, b)
+a::AM  *  b::AM = add(a, b)
+a::AM  *  b     = mul(a, b)
+a      *  b::AM = mul(a, b)
+a::AM  /  b::AM = add(a, b)
+a::AM  /  b     = div(a, b)
+a      /  b::AM = div(a, b)
+a::AM  \  b::AM = add(a, b)
+a::AM  \  b     = div(b, a)
+a      \  b::AM = div(a, b)
 a  ⊣  b = leftcontract(a, b)
 a  ⊢  b = rightcontract(a, b)
 a  ×₂ b =  a*b - b*a
 a  ×  b = (a*b - b*a)/2
 a  ∥₂ b =  a*b + b*a
 a  ∥  b = (a*b + b*a)/2
+mul(a, b) = mul(quadraticform(a, b), a, b)
+inv(a) = inv(quadraticform(a), a)
+div(a, b) = div(quadraticform(a, b), a, b)
+div(q, a, b) = mul(q, a, inv(q, b))
+leftcontract(a, b) = leftcontract(quadraticform(a, b), a, b)
+rightcontract(a, b) = rightcontract(quadraticform(a, b), a, b)
 
 scalarfieldtype(T::Type) =
     error("scalarfieldtype is not implemented for type $T")
 scalarfieldtype(x) = scalarfieldtype(typeof(x))
 scalarfieldtype(::Type{<:AbstractQuadraticForm{K}}) where K = K
-scalarfieldtype(MV::Type{<:AbstractMultivector{K}}) where K = K
+scalarfieldtype(MV::Type{<:AM{K}}) where K = K
 
 vectorspacedim(T::Type) = error("vectorspacedim is not implemented for type $T")
 vectorspacedim(x) = vectorspacedim(typeof(x))
 vectorspacedim(::Type{<:AbstractQuadraticForm{<:Any, N}}) where N = N
-vectorspacedim(MV::Type{<:AbstractMultivector{<:Any, N}}) where N = N
+vectorspacedim(MV::Type{<:AM{<:Any, N}}) where N = N
 
-Base.getindex(x::AbstractMultivector, g::Int) = grade(x, g)
+Base.getindex(x::AM, g::Int) = grade(x, g)
 
-similarmv(x::AbstractMultivector, args...) = convert(similartype(args...), x)
-Base.convert(::Type{AbstractMultivector{K}}, x::AbstractMultivector) where K =
-    convert(AbstractMultivector{K, vectorspacedim(x)}, x)
+similarmv(x::AM, args...) = convert(similartype(args...), x)
+Base.convert(::Type{AM{K}}, x::AM) where K =
+    convert(AM{K, vectorspacedim(x)}, x)
 function Base.convert(
-    ::Type{AbstractMultivector{<:Any, N}}, x::AbstractMultivector
+    ::Type{AM{<:Any, N}}, x::AM
 ) where N
-    convert(AbstractMultivector{scalarfieldtype(x), N}, x)
+    convert(AM{scalarfieldtype(x), N}, x)
 end
 
 struct BasisIndexIter{N}
@@ -129,35 +166,35 @@ include("basisindexiter.jl")
 #include("basisindexiter_reference.jl")
 
 function Base.:(==)(
-    x::AbstractMultivector{<:Any,N}, y::AbstractMultivector{<:Any,N}
+    x::AM{<:Any,N}, y::AM{<:Any,N}
 ) where N
     all(basiscoeff(x, I) == basiscoeff(x, I) for I in eachbasisindex(N))
 end
 
-Base.:-(x::MV, y::MV) where MV<:AbstractMultivector = x + -y
-Base.:*(a::K, x::AbstractMultivector{K}) where K = x*a
-Base.:/(x::Union{MV, K}, y::MV) where {K, MV<:AbstractMultivector{K}} = x*inv(y)
+Base.:-(x::MV, y::MV) where MV<:AM = x + -y
+Base.:*(a::K, x::AM{K}) where K = x*a
+Base.:/(x::Union{MV, K}, y::MV) where {K, MV<:AM{K}} = x*inv(y)
 for op in (:+, :-, :*, :/) @eval begin
-    Base.$op(x::AbstractMultivector, y::AbstractMultivector) =
+    Base.$op(x::AM, y::AM) =
         $op(promote(x,y)...)
 end end
 for op in (:+, :-) @eval begin
-    Base.$op(x::AbstractMultivector, y) = $op(promote(x,y)...)
-    Base.$op(x, y::AbstractMultivector) = $op(promote(x,y)...)
+    Base.$op(x::AM, y) = $op(promote(x,y)...)
+    Base.$op(x, y::AM) = $op(promote(x,y)...)
 end end
 for op in (:*, :/) @eval begin
-    Base.$op(x::AbstractMultivector, y) = $op(x, convert(scalarfieldtype(x), y))
-    Base.$op(x, y::AbstractMultivector) = $op(convert(scalarfieldtype(y), x), y)
+    Base.$op(x::AM, y) = $op(x, convert(scalarfieldtype(x), y))
+    Base.$op(x, y::AM) = $op(convert(scalarfieldtype(y), x), y)
 end end
 
-basiselem(MV::Type{<:AbstractMultivector}) = one(MV)
+basiselem(MV::Type{<:AM}) = one(MV)
 
-basiscoeff(x::AbstractMultivector, I::CartesianIndex) = basiscoeff(x, Tuple(I))
-basiscoeff(x::AbstractMultivector, idxs::Int...) = basiscoeff(x, idxs)
+basiscoeff(x::AM, I::CartesianIndex) = basiscoeff(x, Tuple(I))
+basiscoeff(x::AM, idxs::Int...) = basiscoeff(x, idxs)
 
-hasgrade(x::AbstractMultivector) = !iszero(x[0])
+hasgrade(x::AM) = !iszero(x[0])
 
-gradeinv(x::AbstractMultivector) =
+gradeinv(x::AM) =
     sum(iseven(i) ? x[i] : -x[i] for i = 0:vectorspacedim(x))
 function metricinv(x::AbstractMultivector)
     s = x^2
@@ -174,7 +211,7 @@ metricgraderev(x) = rev(metricinv(gradeinv(x)))
 include("TreeMV2.jl")
 
 function Base.convert(
-    TMV::Type{<:TreeMV2.TreeMultivector{K,N}}, x::AbstractMultivector{K,N}
+    TMV::Type{<:TreeMV2.TreeMultivector{K,N}}, x::AM{K,N}
 ) where {K,N}
     T = TreeMV2.codetype(TMV)
     codes = T[]
@@ -193,7 +230,7 @@ function Base.convert(
 end
 
 function Base.promote_rule(
-    MV1::Type{<:AbstractMultivector}, MV2::Type{<:AbstractMultivector}
+    MV1::Type{<:AM}, MV2::Type{<:AM}
 )
     K1 = scalarfieldtype(MV1)
     K2 = scalarfieldtype(MV2)
@@ -201,6 +238,6 @@ function Base.promote_rule(
     N2 = vectorspacedim(MV2)
     TreeMV2.TreeMultivector{promote_type(K1, K2), max(N1, N2), UInt}
 end
-Base.promote_rule(MV::Type{<:AbstractMultivector}, T::Type) = similartype(MV, T)
+Base.promote_rule(MV::Type{<:AM}, T::Type) = similartype(MV, T)
 
 end # module GeomAlg

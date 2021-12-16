@@ -80,7 +80,7 @@ Base.convert(TMV::Type{<:TreeMultivector{K}}, a::K) where K =
 Base.:(==)(x::TreeMultivector, y::TreeMultivector) =
     x.codes == y.codes && x.coeffs == y.coeffs
 
-function Base.:+(x::TMV, y::TMV) where TMV<:TreeMultivector
+function add(x::TMV, y::TMV) where TMV<:TreeMultivector
     K = scalarfieldtype(TMV)
     T = codetype(TMV)
 
@@ -142,10 +142,10 @@ end
 
 Base.:-(x::TreeMultivector) = @unsafe typeof(x)(x.codes, -x.coeffs)
 
-Base.:*(x::TreeMultivector{K}, a::K) where K =
+Base.mul(_, x::TreeMultivector{K}, a::K) where K =
     @unsafe typeof(x)(x.codes, x.coeffs .* a)
 
-Base.:/(x::TreeMultivector{K}, a::K) where K =
+Base.div(_, x::TreeMultivector{K}, a::K) where K =
     @unsafe typeof(x)(x.codes, x.coeffs ./ a)
 
 GeomAlg.hasgrade(x::TreeMultivector, g::Int) =
