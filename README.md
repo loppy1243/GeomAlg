@@ -117,6 +117,9 @@ quadraticform(x::MultivectorType2) = # ...
 quadraticform(x::MultivectorType3) = # ...
 ```
 
+# Questions
+* Should bases be based on the outer or geometric product?
+
 # References
 <a id="Breuils2017">
 [1] S. Breuils, V. Nozick, L. Fuchs,
