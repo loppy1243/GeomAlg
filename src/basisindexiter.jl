@@ -1,3 +1,20 @@
+struct BasisIndexIter{N}
+    GeomAlg.eachbasisindex(N) = new{N}()
+end
+struct MVIndexView{N,A<:AbstractArray{Int,1}}
+    parent::A
+    last::Int
+end
+MVIndexView{N}(a::AbstractArray{Int,1}, last::Int) where N =
+    MVIndexView{N,typeof(a)}(a, last)
+Base.length(::BasisIndexIter{N}) where N = 2^N
+Base.eltype(::BasisIndexIter{N}) where N =
+    if N < 15
+        MVIndexView{N,MVector{N,Int}}
+    else
+        MVIndexView{N,Vector{Int}}
+    end
+
 Base.iterate(x::BasisIndexIter{N}) where N =
     if N == 0
         idxs = MVector{0,Int}()
