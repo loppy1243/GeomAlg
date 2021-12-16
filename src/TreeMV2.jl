@@ -50,6 +50,26 @@ function Base.convert(
     )
 end
 
+function Base.convert(
+    TMV::Type{<:TreeMV2.TreeMultivector{K,N}}, x::AM{K,N}
+) where {K,N}
+    T = TreeMV2.codetype(TMV)
+    codes = T[]
+    coeffs = K[]
+
+    for I in eachindex(MultivectorBasis(x))
+        val = basiscoeff(x, I)
+        if !iszero(val)
+            c = reduce(|, T(1) << (n-1) for n in Tuple(I))
+            push!(codes, c)
+            push!(coeffs, val)
+        end
+    end
+
+    @unsafe TMV(codes, val)
+end
+
+
 Base.:(==)(x::TreeMultivector{<:Any,N}, y::TreeMultivector{<:Any,N}) where N =
     x.codes == y.codes && x.coeffs == y.coeffs
 
@@ -80,7 +100,7 @@ Base.convert(TMV::Type{<:TreeMultivector{K}}, a::K) where K =
 Base.:(==)(x::TreeMultivector, y::TreeMultivector) =
     x.codes == y.codes && x.coeffs == y.coeffs
 
-function add(x::TMV, y::TMV) where TMV<:TreeMultivector
+function GeomAlg.add(x::TMV, y::TMV) where TMV<:TreeMultivector
     K = scalarfieldtype(TMV)
     T = codetype(TMV)
 
@@ -140,12 +160,17 @@ function add(x::TMV, y::TMV) where TMV<:TreeMultivector
     @unsafe TMV(codes, coeffs)
 end
 
-Base.:-(x::TreeMultivector) = @unsafe typeof(x)(x.codes, -x.coeffs)
+GeomAlg.sub(x::TreeMultivector) = @unsafe typeof(x)(x.codes, -x.coeffs)
 
-Base.mul(_, x::TreeMultivector{K}, a::K) where K =
+GeomAlg.mul(_, x::TreeMultivector{K}, a::K) where K =
     @unsafe typeof(x)(x.codes, x.coeffs .* a)
 
-Base.div(_, x::TreeMultivector{K}, a::K) where K =
+function GeomAlg.mul(
+    q::AbstractQuadraticForm{K,N}, x::TreeMultivector{K,N}
+) where {K,N}
+end
+
+GeomAlg.div(_, x::TreeMultivector{K}, a::K) where K =
     @unsafe typeof(x)(x.codes, x.coeffs ./ a)
 
 GeomAlg.hasgrade(x::TreeMultivector, g::Int) =
