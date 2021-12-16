@@ -179,13 +179,21 @@ hasgrade(x::AM) = !iszero(x[0])
 
 gradeinv(x::AM) =
     sum(iseven(i) ? x[i] : -x[i] for i = 0:vectorspacedim(x))
-function metricinv(x::AbstractMultivector)
-    s = x^2
-    @assert hasgrade(x, 0)
-    abs(basiscoeff(s))^2 / x
+
+notrevgrade(i) = iszero(i & oftype(i, 2))
+rev(x::AM) =
+    sum(revgrade(i) ? x[i] : -x[i] for i = 0:vectorspacedim(x))
+
+### Requires a notion of sign over the base field.
+### Assumes a geometric product basis.
+metricinv(x::AM) = metricinv(quadraticform(x), x)
+function metricinv(q::AbstractQuadraticForm{K,N}, x::AM{K,N}) where {K,N}
+    sum(eachbasisindex(N)) do I
+        revsq = prod(q(i) for i in Tuple(I) if !iszero(q(i)))
+        x / sign(notrevgrade(length(I)) ? revsq : -revsq)
+    end
 end
-rev(x::AbstractMultivector) =
-    sum(i % 4 in (0, 1) ? x[i] : -x[i] for i = 0:vectorspacedim(x))
+
 graderev(x) = rev(gradeinv(x))
 metricrev(x) = rev(metricinv(x))
 metricgraderev(x) = rev(metricinv(gradeinv(x)))

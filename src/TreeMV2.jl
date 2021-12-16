@@ -265,25 +265,29 @@ function gradeinv(x::TreeMultivector)
     @unsafe typeof(x)(x.codes, coeffs)
 end
 
-### This is only valid in fields (char != 2) where -1 is not a square,
-###     and is only practically computable for diagonal forms.
-metricinv(x::TreeMultivector) = metricinv(qform(x), x)
-function metricinv(
-    q::QuadraticForms.Diagonal{K,N}, x::TreeMultivector{K,N}
-) where {K,N}
+### Requires a notion of sign over the base field.
+### Assumes a geometric product basis.
+function metricinv(q, x::TreeMultivector)
+    K = scalarfieldtype(x)
+    N = vectorspacedim(x)
     T = codetype(x)
+    I = one(K)
+
     coeffs = copy(x.coeffs)
     @inbounds for (i, c) in enumerate(x.codes)
-        flipsign = false
+        product = I
         for j = 0:(N-1)
-            if !iszero((T(1) << j) & c) && q(j) == K(-1)
-                flipsign = ~flipsign
+            sq = q(j)
+            if !iszero((T(1) << j) & c) && !iszero(sq)
+                product *= sq
             end
         end
-        if flipsign
-            coeffs[i] = -coeffs[i]
-        end
+
+        notrev = GeomAlg.notrevgrade(count_ones(c))
+        coeffs[i] /= sign(notrev ? product : -product)
     end
+
+    @unsafe typeof(x)(x.codes, coeffs)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", TMV::Type{<:TreeMultivector})
