@@ -69,7 +69,7 @@ quadraticform(a::AM, b::AM) =
 
 Cassette.@context QFormCtx
 function Cassette.overdub(
-    ctx::QFormCTX{QF}, ::typeof(quadraticform),
+    ctx::QFormCtx{QF}, ::typeof(quadraticform),
     x::AM{K,N}, y::AM{K,N}
 ) where {K, N, QF<:AM{K,N}}
     if hasmethod(quadraticform, typeof(x))

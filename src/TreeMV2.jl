@@ -51,7 +51,7 @@ function Base.convert(
 end
 
 function Base.convert(
-    TMV::Type{<:TreeMV2.TreeMultivector{K,N}}, x::AM{K,N}
+    TMV::Type{<:TreeMV2.TreeMultivector{K,N}}, x::AbstractMultivector{K,N}
 ) where {K,N}
     T = TreeMV2.codetype(TMV)
     codes = T[]

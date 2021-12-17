@@ -6,6 +6,7 @@
 ### Is is possible to generically program for both of these cases
 ###     in an ergonomic way?
 module QuadraticForms
+    import Cassette
     import LinearAlgebra
     using ..GeomAlg
     using ..GeomAlg: @unsafe
