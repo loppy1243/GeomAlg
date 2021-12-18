@@ -170,6 +170,92 @@ function GeomAlg.mul(
 ) where {K,N}
 end
 
+leftmullist(q, outcode) =
+    leftmullist(q, 1, outcode, zero(outcode), one(scalarfieldtype(q)), false)
+function leftmullist(q, i, outcode, code, coeff, flipsign)
+    N = vectorspacedim(q)
+    bit1 = one(code) << (i - 1)
+    bit2 = bit1 << 1
+    bit12 = bit1 | bit2
+
+    if i > N + 1
+        []
+    elseif i == N + 1
+        [(coeff, code)]
+    elseif iszero(outcode & bit1)
+        c1 = q(i)*coeff
+        c3 = coeff
+        if iseven(i) || i >= N - 1
+            vcat(
+                iszero(c1) ? [] : leftmullist(q, i+1, outcode, code | bit1, c1, !flipsign),
+                iszero(c3) ? [] : leftmullist(q, i+1, outcode, code,        c3,  flipsign)
+            )
+        else
+            c2 = -q(i,i+1)*coeff
+            vcat(
+                iszero(c1) ? [] : leftmullist(q, i+1, outcode, code | bit1, c1, !flipsign),
+                iszero(c2) ? [] : leftmullist(q, i+2, outcode, code | bit2, c2, !flipsign),
+                iszero(c3) ? [] : leftmullist(q, i+1, outcode, code,        c3,  flipsign)
+            )
+        end
+    else
+        c2 = flipsign ? -coeff : coeff
+        if iseven(i) || i >= N - 1
+            vcat(
+                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code | bit1,  c2,  flipsign),
+                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code,         c2, !flipsign)
+            )
+        else
+            c1 = flipsign ? q(i,i+1)*coeff : -q(i,i+1)*coeff
+            vcat(
+                iszero(c1) ? [] : leftmullist(q, i+2, outcode, code | bit12, c1, !flipsign),
+                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code | bit1,  c2,  flipsign),
+                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code,         c2, !flipsign)
+            )
+        end
+    end
+end
+
+rightmullist(q, outcode) =
+    rightmullist(q, 1, outcode, zero(outcode))
+function rightmullist(q, i, outcode, code)
+    N = vectorspacedim(q)
+    bit1 = one(code) << (i - 1)
+
+    if i > N + 1
+        []
+    elseif i == N + 1
+        [code]
+    elseif iszero(outcode & bit1)
+        c1 = q(i)
+        if iseven(i) || i >= N - 1 || iszero(q(i,i+1))
+            vcat(
+                iszero(c1) ? [] : rightmullist(q, i+1, outcode, code | bit1),
+                                  rightmullist(q, i+1, outcode, code)
+            )
+        else
+            vcat(
+                iszero(c1) ? [] : rightmullist(q, i+1, outcode, code | bit1),
+                                  rightmullist(q, i+2, outcode, code | bit1),
+                                  rightmullist(q, i+1, outcode, code)
+            )
+        end
+    else
+        if iseven(i) || i >= N - 1 || iszero(q(i,i+1))
+            vcat(
+                rightmullist(q, i+1, outcode, code),
+                rightmullist(q, i+1, outcode, code | bit1)
+            )
+        else
+            vcat(
+                rightmullist(q, i+2, outcode, code | bit1),
+                rightmullist(q, i+1, outcode, code),
+                rightmullist(q, i+1, outcode, code | bit1)
+            )
+        end
+    end
+end
+
 GeomAlg.div(_, x::TreeMultivector{K}, a::K) where K =
     @unsafe typeof(x)(x.codes, x.coeffs ./ a)
 
