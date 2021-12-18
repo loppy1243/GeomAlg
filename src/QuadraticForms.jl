@@ -15,29 +15,12 @@ module QuadraticForms
     abstract type AbstractQuadraticForm{K, N} end
     Base.@propagate_inbounds (q::AbstractQuadraticForm)(x::Int) = q(x, x)
 
-    Cassette.@context QFormCtx
-    function Base.@propagate_inbounds Cassette.overdub(
-        ctx::QFormCtx{QF}, ::typeof(quadraticform)
-    ) where {K,N,QF<:AbstractQuadraticForm{K,N}}
-        ctx.metadata
-    end
-
-    struct Nonexistent <: AbstractQuadraticForm{Nothing, 0} end
-
-    (::Nonexistent)(x::Int) = error("Default quadratic form not set")
-    (::Nonexistent)(x::Int, y::Int) = error("Default quadratic form not set")
-
-    function show(io::IO, ::MIME"text/plain", ::Nonexistent)
-        print(io, "Nonexistent 0D Nothing-form")
-    end
-
     function Base.Matrix(q::AbstractQuadraticForm)
         N = vectorspacedim(q)
         [@inbounds q(i, j) for i=1:N, j=1:N]
     end
     Base.Matrix{K}(q::AbstractQuadraticForm{K}) where K = Matrix(q)
 
-    const DEFAULT = Ref{AbstractQuadraticForm}(Nonexistent())
 
     struct Diagonal{K, N} <: AbstractQuadraticForm{K, N}
         sig::NTuple{N, K}
