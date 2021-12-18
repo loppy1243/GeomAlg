@@ -19,7 +19,8 @@ module QuadraticForms
         N = vectorspacedim(q)
         [@inbounds q(i, j) for i=1:N, j=1:N]
     end
-    Base.Matrix{K}(q::AbstractQuadraticForm{K}) where K = Matrix(q)
+    Base.Matrix{K}(q::AbstractQuadraticForm) where K =
+        convert(Matrix{K}, Matrix(q))
 
 
     struct Diagonal{K, N} <: AbstractQuadraticForm{K, N}
