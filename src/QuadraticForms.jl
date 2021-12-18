@@ -22,6 +22,12 @@ module QuadraticForms
     Base.Matrix{K}(q::AbstractQuadraticForm) where K =
         convert(Matrix{K}, Matrix(q))
 
+    struct Unsafe{K, N} <: AbstractQuadraticForm{K, N}
+        mat::Matrix{K}
+    end
+    Base.@propagate_inbounds (q::Unsafe)(x::Int) = q.mat[x,x]
+    Base.@propagate_inbounds (q::Unsafe)(x::Int, y::Int) = q.mat[x,y]
+    Base.Matrix(x::Unsafe) = x.mat
 
     struct Diagonal{K, N} <: AbstractQuadraticForm{K, N}
         sig::NTuple{N, K}
