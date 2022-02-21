@@ -1,16 +1,5 @@
 using MacroTools
 
-function randtmv2(N, n)
-    maxcode = UInt(2^N - 1)
-    codes = collect(UInt(0):maxcode)
-    for _ = 1:(2^N - n)
-        popat!(codes, rand(eachindex(codes)))
-    end
-    GeomAlg.TreeMV2.TreeMultivector{Float64, N, UInt}(
-        codes, rand(Float64, length(codes))
-    )
-end
-
 unsafe(T::Type) = (args...; kwargs...) -> T(args...; kwargs...)
 
 macro unsafe(ex::Expr)

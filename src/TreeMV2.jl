@@ -442,4 +442,24 @@ function Base.show(io::IO, mime::MIME"text/plain", x::TreeMultivector)
     nothing
 end
 
+Base.rand(::Type{TreeMultivector}, N, n) = rand(TreeMultivector{Float64}, N, n)
+Base.rand(::Type{TreeMultivector{K}}, N, n) where K =
+    rand(TreeMultivector{K,N}, n)
+Base.rand(::Type{TreeMultivector{K,N}}, n) where {T,N} =
+    rand(TreeMultivector{K,N,UInt}, n)
+function Base.rand(TMV::Type{<:TreeMultivector}, n)
+    K = scalarfieldtype(TMV)
+    N = vectorspacedim(TMV)
+    T = codetype(TMV)
+
+    maxcode = T(2^N - 1)
+    codes = collect(T(0):maxcode)
+    codes = rand(T(0):maxcode, n)
+    for _ = 1:(2^N - n)
+        popat!(codes, rand(eachindex(codes)))
+    end
+
+    @unsafe TMV(codes, rand(K, length(codes)))
+end
+
 end # module TreeMV2
