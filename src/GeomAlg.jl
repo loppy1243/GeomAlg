@@ -150,6 +150,6 @@ function Base.promote_rule(
     N2 = vectorspacedim(MV2)
     TreeMV.TreeMultivector{promote_type(K1, K2), max(N1, N2), UInt}
 end
-Base.promote_rule(MV::Type{<:AM}, T::Type) = similartype(MV, T)
+Base.promote_rule(MV::Type{<:AM}, T::Type) = similarmvtype(MV, T)
 
 end # module GeomAlg
