@@ -1,42 +1,5 @@
 using MacroTools
 
-randtmv(N, n) =
-    GeomAlg.TreeMV.TreeMultivector{Float64, N}(_randtmv(Float64, N, n))
-function _randtmv(K, N, n)
-    z = zero(K)
-    Z = GeomAlg.TreeMV.TMVZERO
-
-    if N == 1
-        if n == 0
-            GeomAlg.TreeMV.TreeMVPreleaf{K}(z, z)
-        elseif n < 2
-            isleft = rand(Bool)
-            if isleft
-                GeomAlg.TreeMV.TreeMVPreleaf{K}(rand(), z)
-            else
-                GeomAlg.TreeMV.TreeMVPreleaf{K}(z, rand())
-            end
-        else
-            GeomAlg.TreeMV.TreeMVPreleaf{K}(rand(), rand())
-        end
-    else
-        if n == 0
-            GeomAlg.TreeMV.TreeMVTrunk{K}(Z, Z)
-        elseif n < 2^N
-            isleft = rand(Bool)
-            if isleft
-                GeomAlg.TreeMV.TreeMVTrunk{K}(_randtmv(K, N-1, n), Z)
-            else
-                GeomAlg.TreeMV.TreeMVTrunk{K}(Z, _randtmv(K, N-1, n))
-            end
-        else
-            GeomAlg.TreeMV.TreeMVTrunk{K}(
-                _randtmv(K, N-1, div(n, 2)), _randtmv(K, N-1, div(n, 2))
-            )
-        end
-    end
-end
-
 function randtmv2(N, n)
     maxcode = UInt(2^N - 1)
     codes = collect(UInt(0):maxcode)
