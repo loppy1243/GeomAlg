@@ -1,4 +1,4 @@
-module TreeMV2
+module TreeMV
 using TupleTools
 using ..GeomAlg
 using ..GeomAlg: @unsafe, isevenperm
@@ -51,9 +51,9 @@ function Base.convert(
 end
 
 function Base.convert(
-    TMV::Type{<:TreeMV2.TreeMultivector{K,N}}, x::AbstractMultivector{K,N}
+    TMV::Type{<:TreeMultivector{K,N}}, x::AbstractMultivector{K,N}
 ) where {K,N}
-    T = TreeMV2.codetype(TMV)
+    T = codetype(TMV)
     codes = T[]
     coeffs = K[]
 
@@ -462,4 +462,4 @@ function Base.rand(TMV::Type{<:TreeMultivector}, n)
     @unsafe TMV(codes, rand(K, length(codes)))
 end
 
-end # module TreeMV2
+end # module TreeMV

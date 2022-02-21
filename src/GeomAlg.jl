@@ -139,7 +139,7 @@ graderev(x) = rev(gradeinv(x))
 metricrev(x) = rev(metricinv(x))
 metricgraderev(x) = rev(metricinv(gradeinv(x)))
 
-include("TreeMV2.jl")
+include("TreeMV.jl")
 
 function Base.promote_rule(
     MV1::Type{<:AM}, MV2::Type{<:AM}
@@ -148,7 +148,7 @@ function Base.promote_rule(
     K2 = scalarfieldtype(MV2)
     N1 = vectorspacedim(MV1)
     N2 = vectorspacedim(MV2)
-    TreeMV2.TreeMultivector{promote_type(K1, K2), max(N1, N2), UInt}
+    TreeMV.TreeMultivector{promote_type(K1, K2), max(N1, N2), UInt}
 end
 Base.promote_rule(MV::Type{<:AM}, T::Type) = similartype(MV, T)
 

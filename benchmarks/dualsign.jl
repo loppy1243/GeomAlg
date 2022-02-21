@@ -1,5 +1,5 @@
 using BenchmarkTools, GLMakie
-using GeomAlg.TreeMV2: _dualsign, _dualsign2
+using GeomAlg.TreeMV: _dualsign, _dualsign2
 
 function bench(Nmax, T)
     Ns = 1:Nmax
