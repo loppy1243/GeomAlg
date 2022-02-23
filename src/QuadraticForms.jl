@@ -33,6 +33,10 @@ Base.Matrix(x::Unsafe) = x.mat
 struct Diagonal{K, N} <: AbstractQuadraticForm{K, N}
     sig::NTuple{N, K}
 end
+Diagonal{K,N}(sig::Vararg{K,N}) where {K,N} = Diagonal{K,N}(sig)
+Diagonal{K}(sig::NTuple{N,K}) where {K,N} = Diagonal{K,N}(sig)
+Diagonal{K}(sig::K...) where K = Diagonal{K,length(sig)}(sig)
+Diagonal(sig::K...) where K = Diagonal{K,length(sig)}(sig)
 
 Base.@propagate_inbounds (q::Diagonal)(x::Int) = q.sig[x]
 Base.@propagate_inbounds (q::Diagonal)(x::Int, y::Int) =
