@@ -1,6 +1,6 @@
 using MacroTools
 
-unsafe(T::Type) = (args...; kwargs...) -> T(args...; kwargs...)
+unsafe(T::Type) = T
 
 macro unsafe(ex::Expr)
     doerror() = error("Expected function definition or call expression")
