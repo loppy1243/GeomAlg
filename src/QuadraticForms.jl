@@ -89,7 +89,7 @@ function Base.show(io::IO, ::MIME"text/plain", q::AbstractQuadraticForm)
         nameof(typeof(q)), " ",
         N, "D ",
         nameof(K),
-        if typeof(K) === DataType && !isempty(K.parameters)
+        if K isa DataType && !isempty(K.parameters)
             "{"*join(K.parameters, ", ")*"}"
         else
             ""
