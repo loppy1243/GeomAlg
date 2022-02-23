@@ -63,7 +63,7 @@ Base.@propagate_inbounds function (q::BasisChange)(x::Int, y::Int)
     N = vectorspacedim(q)
 
     @boundscheck if !(1 <= x <= N && 1 <= y <= N)
-        throw(BoundError(q, (x, y)))
+        throw(BoundsError(q, (x, y)))
     end
 
     sum(@inbounds q.matrix[i,x]*q.inner(i,j)*q.matrix[j,y] for i=1:N, j=1:N)
@@ -71,22 +71,58 @@ end
 
 Base.Matrix(q::BasisChange) = transpose(q.matrix)*Matrix(q.inner)*q.matrix
 
+VARNAMES = ['a'+i for i = 0:25]
+NTERMS = 6
+
+### This is more so a shorthand since our biliear forms are doubled
+###     and our quadratic forms are not.
 function Base.show(io::IO, ::MIME"text/plain", q::AbstractQuadraticForm)
     K = scalarfieldtype(q)
     N = vectorspacedim(q)
-    print(io, nameof(typeof(q)), " ", N, "D ", nameof(K), "-form ")
+    maxvars = N <= length(VARNAMES) ? N : length(VARNAMES)
+
+    print(io,
+        nameof(typeof(q)), " ",
+        N, "D ",
+        nameof(K),
+        if typeof(K) === DataType && !isempty(K.parameters)
+            "{"*join(K.parameters, ", ")*"}"
+        else
+            ""
+        end,
+        "-form ")
+
     terms = []
-    for j in 1:N
+    for j in 1:maxvars
         qj = q(j)
-        if !iszero(qj) push!(terms, "$(qj)X$(j)²") end
-        for i = (j+1):N
-            qij = q(i, j)
-            if !iszero(qij)
-                push!(push!(terms, "$(qij)X$(i)*X$(j)"))
+        if !iszero(qj)
+            if isone(qj)
+                push!(terms, "$(VARNAMES[j])²")
+            else
+                push!(terms, "$(qj)*$(VARNAMES[j])²")
             end
+
+            if length(terms) >= NTERMS break end
+        end
+        for i = (j+1):maxvars
+            qij = q(i, j)
+            vars = sort!(VARNAMES[[i,j]])
+            if !iszero(qij)
+                if isone(qij)
+                    push!(terms, "$(vars...)")
+                else
+                    push!(terms, "$(qij)*$(vars...)")
+                end
+            end
+
+            if length(terms) >= NTERMS break end
         end
     end
+
     print(io, join(terms, " + "))
+    if length(terms) >= NTERMS || N > length(VARNAMES)
+        print(io, " + ...")
+    end
 
     nothing
 end
