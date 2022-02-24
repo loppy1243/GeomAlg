@@ -1,6 +1,9 @@
-using MacroTools
+module Utils
 
-unsafe(T::Type) = T
+using MacroTools
+export @unsafe, isevenperm
+
+struct Unsafe{T} end
 
 macro unsafe(ex::Expr)
     doerror() = error("Expected function definition or call expression")
@@ -16,27 +19,23 @@ macro unsafe(ex::Expr)
         haskey(def, :name) || doerror()
 
         for (k, v) in def
-            def[k] = v isa Array || v isa Tuple ? map(esc, v) : esc(v)
+            def[k] = v isa Tuple || v isa Array ? map(esc, v) : esc(v)
         end
-
         name = def[:name]
-        params = get(def, :params, nothing)
-        whereparams = get(def, :whereparams, ())
-        delete!(def, :name)
-        delete!(def, :whereparams)
-        closure = combinedef(def)
-        if isnothing(params) quote
-            function GeomAlg.unsafe(::Type{$name}) where {$(whereparams...)}
-                $closure
-            end end
-        else quote
-            function GeomAlg.unsafe(::Type{$name{$(params...)}}) where {$(whereparams...)}
-                $closure
-            end end
-        end
+        def[:name] = :Unsafe
+        def[:params] = 
+            if haskey(def, :params)
+                (:($name{$(def[:params]...)}),)
+            else
+                (name,)
+            end
+
+        combinedef(def)
     elseif @capture(ex, T_(xs__))
+        T = esc(T)
+        xs = map(esc, xs)
         quote
-            GeomAlg.unsafe($(esc(T)))($(map(esc, xs)...))
+            Unsafe{$T}($(xs...))
         end
     else
         doerror()
@@ -67,3 +66,5 @@ function isevenperm(p)
 
     iseven(flips)
 end
+
+end # module Utils

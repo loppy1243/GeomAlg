@@ -5,7 +5,7 @@ using Reexport, StaticArrays
 using Base.Cartesian: @nexprs, @ncall
 
 include("util.jl")
-export randtmv, randtmv2
+using .Utils
 
 include("QuadraticForms.jl")
 @reexport using .QuadraticForms
