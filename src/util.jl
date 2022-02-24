@@ -3,7 +3,18 @@ module Utils
 using MacroTools
 export @unsafe, isevenperm
 
-struct Unsafe{T} end
+struct Unsafe{T}
+    Unsafe{T}(args...; kwargs...) where T = error(
+        "No Unsafe constructor for $T(" *
+        join(map(x -> "::"*string(typeof(x)), args), ", ") *
+        if isempty(kwargs)
+            ""
+        else
+            "; " * join(keys(kwargs), ", ")
+        end *
+        ")"
+    )
+end
 
 macro unsafe(ex::Expr)
     doerror() = error("Expected function definition or call expression")
