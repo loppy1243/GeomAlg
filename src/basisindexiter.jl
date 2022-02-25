@@ -21,9 +21,12 @@ function BasisIndex{N}(last, idx::Vararg{Int}) where N
     @assert last <= N && last <= length(idx)
     @unsafe BasisIndex{N}(last, idx)
 end
-
 BasisIndex{N}(idx::Int...) where N =
     @unsafe BasisIndex{N}(min(N, length(idx)), idx)
+BasisIndex(idx::Int...) = @unsafe BasisIndex{length(idx)}(length(idx), idx)
+
+Base.:(==)(x::BasisIndex, y::BasisIndex) =
+    x.last == y.last && all(@inbounds x.idx[i] == y.idx[i] for i = 1:x.last)
 
 function Base.show(io::IO, ::MIME"text/plain", I::BasisIndex{N}) where N
     print(io, "BasisIndex{$N}(")
