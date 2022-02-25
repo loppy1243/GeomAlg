@@ -11,8 +11,8 @@ end
 @unsafe function BasisIndex{N}(last, idx::NTuple{<:Any,Int}) where N
     idxmut = MVector{N,Int}(undef)
 
-    @inbounds for i = 1:last
-        idxmut[i] = idx[i]
+    for i = 1:last
+        @inbounds idxmut[i] = idx[i]
     end
 
     @unsafe BasisIndex{N}(last, SVector{N,Int}(idxmut))
@@ -48,7 +48,7 @@ function Base.iterate(::BasisIndexIter{N}) where N
     I = @unsafe BasisIndex{N}(0, SVector(state))
 
     if N != 0
-        state[1] = 1
+        @inbounds state[1] = 1
     end
     (I, (1, state))
 end
@@ -63,8 +63,8 @@ function Base.iterate(iter::BasisIndexIter{N}, (grade, state)) where N
         return nothing
     end
 
-    if state[grade] > N
-        if state[1] > N - grade
+    if @inbounds(state[grade]) > N
+        if @inbounds(state[1]) > N - grade
             return _rollover_next_grade(iter, grade, state)
         else
             _rollover(iter, grade, state)
@@ -72,31 +72,31 @@ function Base.iterate(iter::BasisIndexIter{N}, (grade, state)) where N
     end
 
     I = @unsafe BasisIndex{N}(grade, SVector(state))
-    state[grade] += 1
+    @inbounds state[grade] += 1
 
     (I, (grade, state))
 end
 
 @inline function _rollover_next_grade(::BasisIndexIter{N}, grade, state) where N
     for j = 1:(grade+1)
-        state[j] = j
+        @inbounds state[j] = j
     end
 
     I = @unsafe BasisIndex{N}(grade+1, SVector(state))
-    state[grade+1] += 1
+    @inbounds state[grade+1] += 1
 
     (I, (grade+1, state))
 end
 
 @inline function _rollover(::BasisIndexIter{N}, grade, state) where N
     i = 0
-    for j in 1:(grade-1) if state[j+1] > N - grade + j
+    for j in 1:(grade-1) if @inbounds(state[j+1]) > N - grade + j
         i = j
         break
     end end
 
-    state[i] += 1
+    @inbounds state[i] += 1
     for j = (i+1):grade
-        state[j] = state[j-1] + 1
+        @inbounds state[j] = state[j-1] + 1
     end
 end
