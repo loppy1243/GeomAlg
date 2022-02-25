@@ -1,76 +1,102 @@
+using StaticArrays
+
+struct BasisIndex{N}
+    last::Int
+    idx::SVector{N,Int}
+
+    @unsafe function BasisIndex{N}(last, idx::SVector{N,Int}) where N
+        new{N}(last, idx)
+    end
+end
+@unsafe function BasisIndex{N}(last, idx::NTuple{<:Any,Int}) where N
+    idxmut = MVector{N,Int}(undef)
+
+    @inbounds for i = 1:last
+        idxmut[i] = idx[i]
+    end
+
+    @unsafe BasisIndex{N}(last, SVector{N,Int}(idxmut))
+end
+function BasisIndex{N}(last, idx::Vararg{Int}) where N
+    @assert last <= N && last <= length(idx)
+    @unsafe BasisIndex{N}(last, idx)
+end
+
+BasisIndex{N}(idx::Int...) where N =
+    @unsafe BasisIndex{N}(min(N, length(idx)), idx)
+
+function Base.show(io::IO, ::MIME"text/plain", I::BasisIndex{N}) where N
+    print(io, "BasisIndex{$N}(")
+    if !iszero(I.last)
+        print(io, join(I.idx[1:I.last], ", "))
+    end
+    print(io, ')')
+end
+
 struct BasisIndexIter{N}
     GeomAlg.eachbasisindex(N) = new{N}()
 end
-struct MVIndexView{N,A<:AbstractArray{Int,1}}
-    parent::A
-    last::Int
-end
-MVIndexView{N}(a::AbstractArray{Int,1}, last::Int) where N =
-    MVIndexView{N,typeof(a)}(a, last)
+GeomAlg.eachbasisindex(T::Type) = eachbasisindex(vectorspacedim(T))
+GeomAlg.eachbasisindex(x::AbstractMultivector) =
+    eachbasisindex(vectorspacedim(x))
+
+Base.eltype(::BasisIndexIter{N}) where N = BasisIndex{N}
 Base.length(::BasisIndexIter{N}) where N = 2^N
-Base.eltype(::BasisIndexIter{N}) where N =
-    if N < 15
-        MVIndexView{N,MVector{N,Int}}
-    else
-        MVIndexView{N,Vector{Int}}
+
+function Base.iterate(::BasisIndexIter{N}) where N
+    state = MVector{N,Int}(undef)
+    I = @unsafe BasisIndex{N}(0, SVector(state))
+
+    if N != 0
+        state[1] = 1
+    end
+    (I, (1, state))
+end
+
+function Base.iterate(iter::BasisIndexIter{N}, (grade, state)) where N
+    if N == 1 && grade == 1
+        I = @unsafe BasisIndex{N}(grade, SVector(state))
+        return (I, (2, state))
     end
 
-Base.iterate(x::BasisIndexIter{N}) where N =
-    if N == 0
-        idxs = MVector{0,Int}()
-        (MVIndexView{N}(idxs, 0), (val=Val(1), idxs=idxs))
-    elseif N < 15
-        idxs = MVector{N,Int}(undef)
-        idxs[1] = 0
-        (MVIndexView{N}(idxs, 0), (val=Val(1), idxs=idxs))
-    else
-        idxs = Vector{Int}(undef, N)
-        idxs[1] = 0
-        (MVIndexView{N}(idxs, 0), (val=Val(1), idxs=idxs))
-    end
-@generated function Base.iterate(
-    x::BasisIndexIter{N},
-    st::NamedTuple{(:val, :idxs), Tuple{Val{G}, V}}
-) where {N,G,V<:Union{MVector{N,Int},Vector{Int}}}
-    if N == 1 && G == 1
-        return :(MVIndexView{$N,$V}(st.idxs, 1), (val=$(Val(2)), idxs=st.idxs))
-    elseif G >= N 
+    if grade >= N
         return nothing
     end
 
-    firstif = if G >= 2 quote
-        if st.idxs[$G] >= N
-            st.idxs[$(G-1)] += 1
-            st.idxs[$G] = st.idxs[$(G-1)] + 1
+    if state[grade] > N
+        if state[1] > N - grade
+            return _rollover_next_grade(iter, grade, state)
         else
-            st.idxs[$G] += 1
-            return (MVIndexView{$N,$V}(st.idxs, $G), st)
-        end end
-    else
-        :()
+            _rollover(iter, grade, state)
+        end
     end
 
-    ifs = Base.Generator((G-1):-1:2) do i quote
-        if st.idxs[$i] > $(N-G+i)
-            st.idxs[$i-1] += 1
-            @nexprs $(G-i+1) j -> st.idxs[$i+j-1] = st.idxs[$i-1] + j
-            st.idxs[$i] = st.idxs[$i-1] + 1
-        else
-            return (MVIndexView{$N,$V}(st.idxs, $G), st)
-        end
+    I = @unsafe BasisIndex{N}(grade, SVector(state))
+    state[grade] += 1
+
+    (I, (grade, state))
+end
+
+@inline function _rollover_next_grade(::BasisIndexIter{N}, grade, state) where N
+    for j = 1:(grade+1)
+        state[j] = j
+    end
+
+    I = @unsafe BasisIndex{N}(grade+1, SVector(state))
+    state[grade+1] += 1
+
+    (I, (grade+1, state))
+end
+
+@inline function _rollover(::BasisIndexIter{N}, grade, state) where N
+    i = 0
+    for j in 1:(grade-1) if state[j+1] > N - grade + j
+        i = j
+        break
     end end
-        
-    quote
-        @inbounds begin
-        $firstif
-        $(ifs...)
-        if $(G == 1 ? :(>=) : :>)(st.idxs[1], $(N-G+1))
-            @nexprs $(G+1) i -> st.idxs[i] = i
-            (MVIndexView{$N,$V}(st.idxs, $(G+1)), (val=$(Val(G+1)), idxs=st.idxs))
-        else
-            $(G == 1 ? :(st.idxs[1] += 1) : :())
-            (MVIndexView{$N,$V}(st.idxs, $G), st)
-        end
-        end # inbounds
+
+    state[i] += 1
+    for j = (i+1):grade
+        state[j] = state[j-1] + 1
     end
 end
