@@ -21,8 +21,7 @@ struct TreeMultivector{K, N, T<:Unsigned} <: AbstractMultivector{K, N}
         new{K, N, T}(codes, coeffs)
 end
 function TreeMultivector{K, N, T}(codes, coeffs) where {K, N, T<:Unsigned}
-    len = length(codes)
-    @assert length(coeffs) == len
+    @assert length(coeffs) == length(codes)
 
     codesvec = collect(codes)
     perm = sortperm(codesvec)
@@ -43,9 +42,8 @@ function Base.convert(
     ::Type{AbstractMultivector{K, N}}, x::TreeMultivector
 ) where {K, N}
     @assert N >= vectorspacedim(x)
-    @unsafe TreeMultivector{K, N}(
-        convert(AbstractArray{codetype(x)}, x.codes),
-        convert(AbstractArray{K}, x.coeffs)
+    @unsafe TreeMultivector{K, N, codetype(x)}(
+        x.codes, convert(AbstractArray{K}, x.coeffs)
     )
 end
 
@@ -65,7 +63,7 @@ function Base.convert(
         end
     end
 
-    @unsafe TMV(codes, val)
+    @unsafe TMV(codes, coeffs)
 end
 
 
@@ -92,12 +90,13 @@ for f in (:zero, :one, :oneunit) @eval begin
     Base.$f(x::TreeMultivector) = $f(typeof(x))
 end end
 
-Base.promote_rule(TMV::Type{<:TreeMultivector{K}}, ::Type{K}) where K = TMV
 Base.convert(TMV::Type{<:TreeMultivector{K}}, a::K) where K =
     @unsafe TMV([zero(K)], [a])
 
 Base.:(==)(x::TreeMultivector, y::TreeMultivector) =
     x.codes == y.codes && x.coeffs == y.coeffs
+
+nbasisblades(x::TreeMultivector) = length(x.codes)
 
 function GeomAlg.add(x::TMV, y::TMV) where TMV<:TreeMultivector
     K = scalarfieldtype(TMV)
@@ -261,6 +260,7 @@ GeomAlg.div(_, x::TreeMultivector{K}, a::K) where K =
 GeomAlg.hasgrade(x::TreeMultivector, g::Int) =
     any(==(g) ∘ count_ones, x.codes)
 
+### Can use `sizehint!` instead of `resize!`ing
 function GeomAlg.grade(x::TreeMultivector, g::Int)
     K = scalarfieldtype(x)
     N = vectorspacedim(x)
@@ -307,10 +307,10 @@ function GeomAlg.basiselem(TMV::Type{<:TreeMultivector}, idxs::Int...)
     @unsafe TMV([code], [coeff])
 end
 
-function GeomAlg.basiscoeff(x::TreeMultivector, vecnums::NTuple{<:Any, Int})
+function GeomAlg.basiscoeff(x::TreeMultivector, vecnums)
     K = scalarfieldtype(x)
     T = codetype(x)
-    code = reduce(|, (T(1) << (i-1) for i in vecnums))
+    code = isempty(vecnums) ? zero(T) : reduce(|, (T(1) << (i-1) for i in vecnums))
     for (i, c) in enumerate(x.codes)
         if c > code
             break
@@ -444,7 +444,7 @@ end
 Base.rand(::Type{TreeMultivector}, N, n) = rand(TreeMultivector{Float64}, N, n)
 Base.rand(::Type{TreeMultivector{K}}, N, n) where K =
     rand(TreeMultivector{K,N}, n)
-Base.rand(::Type{TreeMultivector{K,N}}, n) where {T,N} =
+Base.rand(::Type{TreeMultivector{K,N}}, n) where {K,N} =
     rand(TreeMultivector{K,N,UInt}, n)
 function Base.rand(TMV::Type{<:TreeMultivector}, n)
     K = scalarfieldtype(TMV)
