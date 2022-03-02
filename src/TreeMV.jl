@@ -3,7 +3,6 @@ using TupleTools
 using ..GeomAlg
 using ..GeomAlg: @unsafe, isevenperm
 
-### Should really use `SVector`s, probably.
 ### Description:
 ### - 'codes' stores `N` bits,
 ###   with the i^th bit corresponding to whether or not
