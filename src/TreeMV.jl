@@ -160,62 +160,200 @@ end
 
 GeomAlg.sub(x::TreeMultivector) = @unsafe typeof(x)(x.codes, -x.coeffs)
 
-GeomAlg.mul(_, x::TreeMultivector{K}, a::K) where K =
-    @unsafe typeof(x)(x.codes, x.coeffs .* a)
-
-function GeomAlg.mul(
-    q::AbstractQuadraticForm{K,N}, x::TreeMultivector{K,N}
-) where {K,N}
+GeomAlg.mul(a::K, x::TreeMultivector{K}) where K =
+    GeomAlg.mul(x, a)
+function GeomAlg.mul(x::TreeMultivector{K}, a::K) where K
+    if iszero(a)
+        zero(x)
+    else
+        @unsafe typeof(x)(x.codes, x.coeffs * a)
+    end
 end
 
+function GeomAlg.mul(
+    q::AbstractQuadraticForm{K,N}, x::TMV, y::TMV
+) where {K,N,TMV<:TreeMultivector{K,N}}
+    T = codetype(TMV)
+
+    len = max(length(x.codes), length(y.codes))
+    codes = sizehint!(T[], len)
+    coeffs = sizehint!(K[], len)
+
+    for outcode = zero(T):(T(2)^N-T(1))
+        rlist = rightmullist(q, outcode)
+        if isempty(rlist) continue end
+        llist = leftmullist(q, outcode)
+        codeexists = false
+
+        for ((mulcoeff, leftcode), rightcode) in zip(llist, rlist)
+            xidx = findfirst(==(leftcode), x.codes)
+            if !isnothing(xidx)
+                yidx = findfirst(==(rightcode), y.codes)
+                if !isnothing(yidx)
+                    if codeexists
+                        coeffs[end] += mulcoeff*x.coeffs[xidx]*y.coeffs[yidx]
+                    else
+                        push!(codes, outcode)
+                        push!(coeffs, mulcoeff*x.coeffs[xidx]*y.coeffs[yidx])
+                        codeexists = true
+                    end
+                end
+            end
+        end
+    end
+
+    @unsafe TMV(codes, coeffs)
+end
+
+### Clobbers J
+basismul(TMV, q, I, J) = basismul(TMV, q, I, J, one(scalarfieldtype(TMV)))
+function basismul(TMV, q, I, J, coeff)
+    K = scalarfieldtype(TMV)
+    T = codetype(TMV)
+
+    newelem = Int[]
+    tot = zero(TMV)
+
+    for (idx, i) in enumerate(I)
+        jdx = findfirst(==(i), J)
+        if isnothing(jdx)
+            push!(newelem, i)
+        else
+            if isodd(i)
+                partner = i + 1
+                if idx < length(I) && I[idx+1] == partner
+                    coeff′ = q(i,partner)*coeff
+                    if !iszero(coeff′)
+                        I′ = deleteat!(copy(I), (idx, idx+1))
+                        J′ = copy(J)
+                        tot += basismul(TMV, q, I′, J′, coeff′)
+                    end
+                end
+            else
+                partner = i - 1
+                if jdx > 1 && J[jdx-1] == partner
+                    coeff′ = q(i,partner)*(iseven(jdx-1 + length(I) - idx - 1) ? coeff : -coeff)
+                    if !iszero(coeff′)
+                        I′ = deleteat!(copy(I), idx)
+                        J′ = deleteat!(copy(J), jdx-1)
+                        tot += basismul(TMV, q, I′, J′, coeff′)
+                    end
+                end
+            end
+
+            qi = q(i)
+            if iszero(qi) return tot end
+            if iseven(jdx + length(I) - idx - 1)
+                coeff *= qi
+            else
+                coeff *= -qi
+            end
+            deleteat!(J, jdx)
+        end
+    end
+    append!(newelem, J)
+
+    code = isempty(newelem) ? zero(T) : reduce(|, T(1) << (i-1) for i in newelem)
+    p = sortperm(newelem)
+
+    tot + @unsafe TMV(T[code], K[isevenperm(p) ? coeff : -coeff])
+end
+function naivemul(q, x, y)
+    tot = zero(x)
+    for I in GeomAlg.eachbasisindex(x), J in GeomAlg.eachbasisindex(y)
+        tot += (
+            GeomAlg.basiscoeff(x, Tuple(I))
+            * GeomAlg.basiscoeff(y, Tuple(J))
+            * basismul(typeof(x), q, collect(I), collect(J))
+        )
+   end
+
+    tot
+end
+
+### Assumes hyperbolic/diagonal decomposition of `q`.
 leftmullist(q, outcode) =
     leftmullist(q, 1, outcode, zero(outcode), one(scalarfieldtype(q)), false)
-function leftmullist(q, i, outcode, code, coeff, flipsign)
+function leftmullist(q, i, outcode, code, coeff, involuted)
     N = vectorspacedim(q)
     bit1 = one(code) << (i - 1)
-    bit2 = bit1 << 1
-    bit12 = bit1 | bit2
 
     if i > N + 1
         []
     elseif i == N + 1
         [(coeff, code)]
     elseif iszero(outcode & bit1)
-        c1 = q(i)*coeff
-        c3 = coeff
-        if iseven(i) || i >= N - 1
-            vcat(
-                iszero(c1) ? [] : leftmullist(q, i+1, outcode, code | bit1, c1, !flipsign),
-                iszero(c3) ? [] : leftmullist(q, i+1, outcode, code,        c3,  flipsign)
-            )
-        else
-            c2 = -q(i,i+1)*coeff
-            vcat(
-                iszero(c1) ? [] : leftmullist(q, i+1, outcode, code | bit1, c1, !flipsign),
-                iszero(c2) ? [] : leftmullist(q, i+2, outcode, code | bit2, c2, !flipsign),
-                iszero(c3) ? [] : leftmullist(q, i+1, outcode, code,        c3,  flipsign)
-            )
-        end
+        _leftmullist_right(q, i, outcode, code, coeff, involuted)
     else
-        c2 = flipsign ? -coeff : coeff
-        if iseven(i) || i >= N - 1
-            vcat(
-                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code | bit1,  c2,  flipsign),
-                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code,         c2, !flipsign)
-            )
-        else
-            c1 = flipsign ? q(i,i+1)*coeff : -q(i,i+1)*coeff
-            vcat(
-                iszero(c1) ? [] : leftmullist(q, i+2, outcode, code | bit12, c1, !flipsign),
-                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code | bit1,  c2,  flipsign),
-                iszero(c2) ? [] : leftmullist(q, i+1, outcode, code,         c2, !flipsign)
+        _leftmullist_left(q, i, outcode, code, coeff, involuted)
+    end
+end
+function _leftmullist_left(q, i, outcode, code, coeff, involuted)
+    N = vectorspacedim(q)
+    bit1 = one(code) << (i - 1)
+    bit2 = bit1 << 1
+    bit12 = bit1 | bit2
+
+    ret = begin
+        coeff′ = involuted ? -coeff : coeff
+
+        append!(
+            leftmullist(q, i+1, outcode, code|bit1, coeff′, involuted),
+            leftmullist(q, i+1, outcode, code, coeff, ~involuted)
+        )
+    end
+
+    if isodd(i) && i <= N - 1
+        qip1 = @inbounds q(i,i+1)
+        if !iszero(qip1)
+            coeff′ = involuted ? -coeff*qip1 : coeff*qip1
+            involuted′ = iszero(outcode & bit2) ⊻ involuted
+
+            append!(ret,
+                leftmullist(q, i+2, outcode, code|bit12, coeff′, involuted′)
             )
         end
     end
+
+    ret
+end
+function _leftmullist_right(q, i, outcode, code, coeff, involuted)
+    N = vectorspacedim(q)
+    bit1 = one(code) << (i - 1)
+    bit2 = bit1 << 1
+
+    ret = begin
+        coeff′ = involuted ? -coeff : coeff
+
+        leftmullist(q, i+1, outcode, code, coeff′, involuted)
+    end
+
+    qi = @inbounds q(i)
+    if !iszero(qi)
+        coeff′ = involuted ? -coeff*qi : coeff*qi
+
+        append!(ret,
+            leftmullist(q, i+1, outcode, code|bit1, coeff′, ~involuted)
+        )
+    end
+
+    if isodd(i) && i <= N - 1
+        qip1 = @inbounds q(i,i+1)
+        if !iszero(qip1)
+            coeff′ = coeff*qip1
+            involuted′ = iszero(outcode & bit2) ⊻ involuted
+
+            append!(ret,
+                leftmullist(q, i+2, outcode, code|bit2, coeff′, involuted′)
+            )
+        end
+    end
+
+    ret
 end
 
-rightmullist(q, outcode) =
-    rightmullist(q, 1, outcode, zero(outcode))
+### Assumes hyperbolic/diagonal decomposition of `q`.
+rightmullist(q, outcode) = rightmullist(q, 1, outcode, zero(outcode))
 function rightmullist(q, i, outcode, code)
     N = vectorspacedim(q)
     bit1 = one(code) << (i - 1)
@@ -225,33 +363,57 @@ function rightmullist(q, i, outcode, code)
     elseif i == N + 1
         [code]
     elseif iszero(outcode & bit1)
-        c1 = q(i)
-        if iseven(i) || i >= N - 1 || iszero(q(i,i+1))
-            vcat(
-                iszero(c1) ? [] : rightmullist(q, i+1, outcode, code | bit1),
-                                  rightmullist(q, i+1, outcode, code)
-            )
-        else
-            vcat(
-                iszero(c1) ? [] : rightmullist(q, i+1, outcode, code | bit1),
-                                  rightmullist(q, i+2, outcode, code | bit1),
-                                  rightmullist(q, i+1, outcode, code)
-            )
-        end
+        _rightmullist_right(q, i, outcode, code)
     else
-        if iseven(i) || i >= N - 1 || iszero(q(i,i+1))
-            vcat(
-                rightmullist(q, i+1, outcode, code),
-                rightmullist(q, i+1, outcode, code | bit1)
-            )
-        else
-            vcat(
-                rightmullist(q, i+2, outcode, code | bit1),
-                rightmullist(q, i+1, outcode, code),
-                rightmullist(q, i+1, outcode, code | bit1)
+        _rightmullist_left(q, i, outcode, code)
+    end
+end
+function _rightmullist_left(q, i, outcode, code)
+    N = vectorspacedim(q)
+    bit1 = one(code) << (i - 1)
+    bit2 = bit1 << 1
+    bit12 = bit1 | bit2
+
+    ret = append!(
+        rightmullist(q, i+1, outcode, code),
+        rightmullist(q, i+1, outcode, code|bit1)
+    )
+
+    if isodd(i) && i <= N - 1
+        if !iszero(@inbounds q(i,i+1))
+            code′ = iszero(outcode & bit2) ? code|bit1 : code|bit12
+
+            append!(ret, rightmullist(q, i+2, outcode, code′))
+        end
+    end
+
+    ret
+end
+function _rightmullist_right(q, i, outcode, code)
+    N = vectorspacedim(q)
+    bit1 = one(code) << (i - 1)
+    bit2 = bit1 << 1
+    bit12 = bit1 | bit2
+
+    ret = rightmullist(q, i+1, outcode, code)
+
+    if !iszero(@inbounds q(i))
+        append!(ret,
+            rightmullist(q, i+1, outcode, code|bit1)
+        )
+    end
+
+    if isodd(i) && i <= N - 1
+        if !iszero(@inbounds q(i,i+1))
+            code′ = iszero(outcode & bit2) ? code|bit1 : code|bit12
+
+            append!(ret,
+                rightmullist(q, i+2, outcode, code′)
             )
         end
     end
+
+    ret
 end
 
 GeomAlg.div(_, x::TreeMultivector{K}, a::K) where K =
