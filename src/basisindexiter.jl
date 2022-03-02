@@ -68,16 +68,16 @@ function Base.iterate(iter::BasisIndexIter{N}, (grade, state)) where N
 
     if @inbounds(state[grade]) > N
         if @inbounds(state[1]) > N - grade
-            return _rollover_next_grade(iter, grade, state)
+            _rollover_next_grade(iter, grade, state)
         else
             _rollover(iter, grade, state)
         end
+    else
+        I = @unsafe BasisIndex{N}(grade, SVector(state))
+        @inbounds state[grade] += 1
+
+        (I, (grade, state))
     end
-
-    I = @unsafe BasisIndex{N}(grade, SVector(state))
-    @inbounds state[grade] += 1
-
-    (I, (grade, state))
 end
 
 @inline function _rollover_next_grade(::BasisIndexIter{N}, grade, state) where N
@@ -102,4 +102,9 @@ end
     for j = (i+1):grade
         @inbounds state[j] = state[j-1] + 1
     end
+
+    I = @unsafe BasisIndex{N}(grade, SVector(state))
+    @inbounds state[grade] += 1
+
+    (I, (grade, state))
 end
