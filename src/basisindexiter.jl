@@ -1,3 +1,4 @@
+import Base.Threads
 using StaticArrays
 
 struct BasisIndex{N}
@@ -46,8 +47,15 @@ GeomAlg.eachbasisindex(x::AbstractMultivector) =
 Base.eltype(::BasisIndexIter{N}) where N = BasisIndex{N}
 Base.length(::BasisIndexIter{N}) where N = 2^N
 
+let STATES =
+    SVector{Threads.nthreads(), Dict{Int, MVector{<:Any, Int}}}(
+        Dict{Int, MVector{<:Any, Int}}()
+        for _ = 1:Threads.nthreads()
+    )
 function Base.iterate(::BasisIndexIter{N}) where N
-    state = MVector{N,Int}(undef)
+    state::MVector{N,Int} = get!(STATES[Threads.threadid()], N) do
+        MVector{N,Int}(undef)
+    end
     I = @unsafe BasisIndex{N}(0, SVector(state))
 
     if N != 0
@@ -55,29 +63,27 @@ function Base.iterate(::BasisIndexIter{N}) where N
     end
     (I, (1, state))
 end
+end
 
 function Base.iterate(iter::BasisIndexIter{N}, (grade, state)) where N
     if N == 1 && grade == 1
         I = @unsafe BasisIndex{N}(grade, SVector(state))
-        return (I, (2, state))
-    end
 
-    if grade >= N
-        return nothing
-    end
-
-    if @inbounds(state[grade]) > N
+        (I, (2, state))
+    elseif grade >= N
+        nothing
+    elseif @inbounds(state[grade]) > N
         if @inbounds(state[1]) > N - grade
-            return _rollover_next_grade(iter, grade, state)
+            _rollover_next_grade(iter, grade, state)
         else
             _rollover(iter, grade, state)
         end
+    else
+        I = @unsafe BasisIndex{N}(grade, SVector(state))
+        @inbounds state[grade] += 1
+
+        (I, (grade, state))
     end
-
-    I = @unsafe BasisIndex{N}(grade, SVector(state))
-    @inbounds state[grade] += 1
-
-    (I, (grade, state))
 end
 
 @inline function _rollover_next_grade(::BasisIndexIter{N}, grade, state) where N
@@ -102,4 +108,9 @@ end
     for j = (i+1):grade
         @inbounds state[j] = state[j-1] + 1
     end
+
+    I = @unsafe BasisIndex{N}(grade, SVector(state))
+    @inbounds state[grade] += 1
+
+    (I, (grade, state))
 end
