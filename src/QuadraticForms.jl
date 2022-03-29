@@ -7,7 +7,6 @@
 ###     in an ergonomic way?
 module QuadraticForms
 
-import Cassette
 import LinearAlgebra
 using ..GeomAlg
 using ..GeomAlg: @unsafe
