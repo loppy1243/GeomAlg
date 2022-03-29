@@ -71,9 +71,10 @@ end
 project(a, b) = (a ⊣ b) ⊣ inv(b)
 
 # `x` and `y` multivectors
+import LinearAlgebra
 function mygeomalgroutine(x, y)
-    I = one(scalarfieldtype(x))
-    q = QuadraticForms.Diagonal(I, I, I)
+    K = scalarfieldtype(x)
+    q = QuadraticForm{K, 3}(one(K)*LinearAlgebra.I)
     
     @with_quadratic_form q begin
         # do some stuff...
@@ -99,14 +100,14 @@ Most importantly,
 
 We get other niceties as well.
 ```julia
-quadraticform(_) = QuadraticForms.Diagonal(1.0, 1.0)
+quadraticform(_) = QuadraticForm{Float64, 2}(1.0*LinearAlgebra.I)
 ```
 This will define a quadratic form to be used everywhere,
   so that `@with_quadratic_form` isn't necessary.
 (A caution though: this does have precedence over `@with_quadratic_form`.)
 For convenience, we can also do
 ```julia
-quadraticform(K, N) = QuadraticForms.Diagonal(ones(K, N)...)
+quadraticform(K, N) = QuadraticForm{K, N}(one(K)*LinearAlgebra.I)
 ```
 And in the case where you _do_
   want to attach a quadratic form to a given multivector type,

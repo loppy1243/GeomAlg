@@ -2,19 +2,20 @@ module GeomAlg
 
 import Cassette
 using Reexport, StaticArrays
+
+import LinearAlgebra
 using Base.Cartesian: @nexprs, @ncall
 
 include("util.jl")
 using .Utils
-
-include("QuadraticForms.jl")
-@reexport using .QuadraticForms
 
 include("interface.jl")
 export
     AbstractMultivector, AbstractBlade, vectorspacedim, scalarfieldtype,
     grade, rightbasisdual, leftbasisdual, basiselem,
     similarmv, similarmvtype
+
+include("quadraticforms.jl")
 
 abstract type AbstractMultivector{K, N} end
 const AM = AbstractMultivector
@@ -23,12 +24,12 @@ abstract type AbstractBlade{K, N} <: AM{K, N} end
 scalarfieldtype(T::Type) =
     error("scalarfieldtype is not implemented for type $T")
 scalarfieldtype(x) = scalarfieldtype(typeof(x))
-scalarfieldtype(::Type{<:AbstractQuadraticForm{K}}) where K = K
+scalarfieldtype(::Type{<:QuadraticForm{K}}) where K = K
 scalarfieldtype(MV::Type{<:AM{K}}) where K = K
 
 vectorspacedim(T::Type) = error("vectorspacedim is not implemented for type $T")
 vectorspacedim(x) = vectorspacedim(typeof(x))
-vectorspacedim(::Type{<:AbstractQuadraticForm{<:Any, N}}) where N = N
+vectorspacedim(::Type{<:QuadraticForm{<:Any, N}}) where N = N
 vectorspacedim(MV::Type{<:AM{<:Any, N}}) where N = N
 
 Base.getindex(x::AM, g::Int) = grade(x, g)
@@ -64,47 +65,6 @@ function Base.show(io::IO, mime::MIME"text/plain", x::MultivectorBasis)
     nothing
 end
 
-quadraticform(a::AM, b::AM) =
-    quadraticform(promote_type(typeof(a), typeof(b)))
-
-Cassette.@context QFormCtx
-function Cassette.overdub(
-    ctx::QFormCtx{QF}, ::typeof(quadraticform),
-    x::AM{K,N}, y::AM{K,N}
-) where {K, N, QF<:AbstractQuadraticForm{K,N}}
-    if hasmethod(quadraticform, typeof(x))
-        quadraticform(xs...)
-    elseif hasmethod(quadraticform, Tuple{Type{K}, typeof(N)})
-        quadraticform(K, N)
-    else
-        ctx.metadata
-    end
-end
-function Cassette.overdub(
-    ctx::QFormCtx{QF}, ::typeof(quadraticform), x::AM{K,N}
-) where {K, N, QF<:AbstractQuadraticForm{K,N}}
-    if hasmethod(quadraticform, Tuple{typeof(x)})
-        quadraticform(x)
-    elseif hasmethod(quadraticform, Tuple{Type{K}, typeof(N)})
-        quadraticform(K, N)
-    else
-        ctx.metadata
-    end
-end
-function Cassette.overdub(
-    ctx::QFormCtx, ::typeof(quadraticform), xs...
-)
-    if hasmethod(quadraticform, typeof(x))
-        quadraticform(xs...)
-    else
-        error("No quadraticform associated with $(typeof.(xs))")
-    end
-end
-
-macro with_quadratic_form(form, body)
-    :(Cassette.recurse(QFormCtx(; metadata=$(esc(form))), () -> $(esc(body))))
-end
-
 include("interface.jl")
 include("operators.jl")
 include("conversion.jl")
@@ -128,7 +88,7 @@ rev(x::AM) =
 ### Requires a notion of sign over the base field.
 ### Assumes a geometric product basis.
 metricinv(x::AM) = metricinv(quadraticform(x), x)
-function metricinv(q::AbstractQuadraticForm{K,N}, x::AM{K,N}) where {K,N}
+function metricinv(q::QuadraticForm{K,N}, x::AM{K,N}) where {K,N}
     sum(eachbasisindex(N)) do I
         revsq = prod(q(i) for i in Tuple(I) if !iszero(q(i)))
         x / sign(notrevgrade(length(I)) ? revsq : -revsq)

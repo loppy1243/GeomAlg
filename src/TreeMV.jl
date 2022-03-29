@@ -163,9 +163,7 @@ GeomAlg.sub(x::TreeMultivector) = @unsafe typeof(x)(x.codes, -x.coeffs)
 GeomAlg.mul(_, x::TreeMultivector{K}, a::K) where K =
     @unsafe typeof(x)(x.codes, x.coeffs .* a)
 
-function GeomAlg.mul(
-    q::AbstractQuadraticForm{K,N}, x::TreeMultivector{K,N}
-) where {K,N}
+function GeomAlg.mul(q::QuadraticForm{K,N}, x::TreeMultivector{K,N}) where {K,N}
 end
 
 leftmullist(q, outcode) =
