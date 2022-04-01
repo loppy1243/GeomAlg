@@ -13,6 +13,10 @@ module QForms
 end
 using .QForms: QFormRepr
 
+QForms.QFormRepr(::Type) = QForms.FunctionLike()
+QForms.QFormRepr(::Type{<:AbstractArray}) = QForms.ArrayLike()
+QForms.QFormRepr(::Type{<:LinearAlgebra.UniformScaling}) = QForms.ArrayLike()
+
 Base.@propagate_inbounds (q::QF)(i::Int) =
     _apply_qform(QFormRepr(_qform_datatype(T)), q, i)
 Base.@propagate_inbounds (q::QF)(i::Int, j::Int) =
