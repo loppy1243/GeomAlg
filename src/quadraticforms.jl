@@ -15,7 +15,7 @@ using .QForms: QFormRepr
 
 Base.@propagate_inbounds (q::QF)(i::Int) =
     _apply_qform(QFormRepr(_qform_datatype(T)), q, i)
-Base.@propagate_inbounds (q::QF)(i::Int, j::Int)
+Base.@propagate_inbounds (q::QF)(i::Int, j::Int) =
     _apply_qform(QFormRepr(_qform_datatype(T)), q, i, j)
 
 Base.@propagate_inbounds _apply_qform(::QForms.FunctionLike, q, i) = q(i)
