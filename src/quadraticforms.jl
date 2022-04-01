@@ -1,7 +1,33 @@
 struct QuadraticForm{K, N, T}
     data::T
-    QuadraticForm{K,N}(data) = new{K,N,typeof(data)}(data)
+    @unsafe QuadraticForm{K,N}(data) = new{K,N,typeof(data)}(data)
 end
+
+QuadraticForm{K,N}(data) where {K,N} = QuadraticForm{K,N}(QFormRepr(data), data)
+function QuadraticForm{K,N}(::QForms.FunctionLike, data) where {K,N}
+    if any(data(i, j) != data(j, i) for i = 1:N, j = 1:N)
+        throw(DomainError(data, "Expected symmetric function"))
+    end
+
+    @unsafe QuadraticForm{K,N}(data)
+end
+function QuadraticForm{K,N}(::QForms.ArrayLike, data) where {K,N}
+    if data != transpose(data)
+        throw(DomainError(data, "Expected symmetric matrix"))
+    end
+
+    @unsafe QuadraticForm{K,N}(data)
+end
+
+function QuadraticForm{K,N}(data::AbstractMatrix; uplo=:U) where {K,N}
+    if data != transpose(data)
+        throw(DomainError(data, "Expected symmetric matrix"))
+    end
+
+    @unsafe QuadraticForm{K,N}(data; uplo)
+end
+@unsafe QuadraticForm{K,N}(data::AbstractMatrix; uplo=:U) where {K,N} =
+    invoke(Unsafe{QuadraticForm{K,N}}, Tuple{Any}, LinearAlgebra.Symmetric(data; uplo))
 
 _qform_datatype(x::QuadraticForm) = _qform_datatype(typeof(x))
 _qform_datatype(::Type{<:QuadraticForm{<:Any, <:Any, T}}) where T = T
